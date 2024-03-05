@@ -158,48 +158,30 @@ void IKBoneSegment3D::_set_optimal_rotation(Ref<IKBone3D> p_for_bone, PackedVect
 	Transform3D prev_transform = p_for_bone->get_pose();
 	bool got_closer = true;
 	double bone_damp = p_for_bone->get_cos_half_dampen();
-
 	int i = 0;
 	do {
 		_update_tip_headings(p_for_bone, &tip_headings);
 		if (!p_constraint_mode) {
-			// Solved the ik transform and apply it.
 			QCP qcp = QCP(evec_prec);
-			Quaternion rot = qcp.weighted_superpose(*r_htip, *r_htarget, *r_weights, p_translate);
+			Basis rotation = qcp.weighted_superpose(*r_htip, *r_htarget, *r_weights, p_translate);
 			Vector3 translation = qcp.get_translation();
 			double dampening = (p_dampening != -1.0) ? p_dampening : bone_damp;
-			rot = clamp_to_quadrance_angle(rot, cos(dampening / 2.0)).normalized();
-			p_for_bone->get_ik_transform()->rotate_local_with_global(rot);
+			rotation = clamp_to_quadrance_angle(rotation.get_rotation_quaternion(), cos(dampening / 2.0));
+			p_for_bone->get_ik_transform()->rotate_local_with_global(rotation.get_rotation_quaternion());
 			Transform3D result = Transform3D(p_for_bone->get_global_pose().basis, p_for_bone->get_global_pose().origin + translation);
-			result.orthonormalize();
 			p_for_bone->set_global_pose(result);
 		}
-		// Calculate orientation before twist to avoid exceeding the twist bound when updating the rotation.
-		if (p_for_bone->is_orientationally_constrained() && p_for_bone->get_parent().is_valid()) {
+		bool is_parent_valid = p_for_bone->get_parent().is_valid();
+		if (is_parent_valid && p_for_bone->is_orientationally_constrained()) {
 			p_for_bone->get_constraint()->set_axes_to_orientation_snap(p_for_bone->get_bone_direction_transform(), p_for_bone->get_ik_transform(), p_for_bone->get_constraint_orientation_transform(), bone_damp, p_for_bone->get_cos_half_dampen());
 		}
-		if (p_for_bone->is_axially_constrained() && p_for_bone->get_parent().is_valid()) {
+		if (is_parent_valid && p_for_bone->is_axially_constrained()) {
 			p_for_bone->get_constraint()->set_snap_to_twist_limit(p_for_bone->get_bone_direction_transform(), p_for_bone->get_ik_transform(), p_for_bone->get_constraint_twist_transform(), bone_damp, p_for_bone->get_cos_half_dampen());
 		}
-
 		if (default_stabilizing_pass_count > 0) {
 			_update_tip_headings(p_for_bone, &tip_headings_uniform);
 			double current_msd = _get_manual_msd(tip_headings_uniform, target_headings, heading_weights);
 			if (current_msd <= previous_deviation * 1.0001) {
-				if (p_for_bone->get_constraint().is_valid() && !Math::is_zero_approx(p_for_bone->get_constraint()->get_resistance())) {
-					if (bone_damp != -1) {
-						float returnfulness = p_for_bone->get_constraint()->get_resistance();
-						float dampened_angle = p_for_bone->get_stiffness() * bone_damp * returnfulness;
-						float total_iterations_square = total_iterations * total_iterations;
-						float scaled_dampened_angle = dampened_angle * ((total_iterations_square - (current_iteration * current_iteration)) / total_iterations_square);
-						float cos_half_angle = Math::cos(0.5f * scaled_dampened_angle);
-						p_for_bone->get_constraint()->set_axes_to_returnfulled(p_for_bone->get_bone_direction_transform(), p_for_bone->get_ik_transform(), p_for_bone->get_constraint_orientation_transform(), cos_half_angle, scaled_dampened_angle);
-					} else {
-						p_for_bone->get_constraint()->set_axes_to_returnfulled(p_for_bone->get_bone_direction_transform(), p_for_bone->get_ik_transform(), p_for_bone->get_constraint_orientation_transform(), p_for_bone->get_cos_half_returnfullness_dampened()[current_iteration], p_for_bone->get_cos_half_returnfullness_dampened()[current_iteration]);
-					}
-					_update_tip_headings(p_for_bone, &tip_headings);
-					current_msd = _get_manual_msd(tip_headings, target_headings, heading_weights);
-				}
 				previous_deviation = current_msd;
 				got_closer = true;
 				break;
@@ -455,14 +437,4 @@ void IKBoneSegment3D::_finalize_segment(Ref<IKBone3D> p_current_tip) {
 	set_name(vformat("IKBoneSegment%sRoot%sTip", root->get_name(), tip->get_name()));
 	bones.clear();
 	create_bone_list(bones, false);
-}
-
-void IKBoneSegment3D::update_returnfulness_damp(int32_t p_iterations) {
-	for (Ref<IKBone3D> bone : bones) {
-		if (bone.is_null()) {
-			continue;
-		}
-		bone->pull_back_toward_allowable_region();
-		previous_deviation = INFINITY;
-	}
 }

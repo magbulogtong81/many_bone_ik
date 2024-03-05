@@ -81,7 +81,6 @@ public:
 	void set_half_returnfullness_dampened(const Vector<float> &p_value);
 	void set_stiffness(double p_stiffness);
 	double get_stiffness() const;
-	void pull_back_toward_allowable_region();
 	bool is_axially_constrained();
 	bool is_orientationally_constrained();
 	Transform3D get_bone_direction_global_pose() const;
@@ -114,6 +113,9 @@ public:
 	~IKBone3D() {}
 	float get_cos_half_dampen() const;
 	void set_cos_half_dampen(float p_cos_half_dampen);
+	Transform3D get_parent_bone_aligned_transform();
+	Transform3D get_set_constraint_twist_transform() const;
+	float calculate_total_radius_sum(const TypedArray<IKLimitCone3D> &p_cones) const;
+	Vector3 calculate_weighted_direction(const TypedArray<IKLimitCone3D> &p_cones, float p_total_radius_sum) const;
 };
-
 #endif // IK_BONE_3D_H
