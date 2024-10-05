@@ -30,16 +30,16 @@
 
 #include "ik_bone_segment_3d.h"
 
+#include "core/string/string_builder.h"
 #include "ik_effector_3d.h"
 #include "ik_kusudama_3d.h"
-#include "ik_limit_cone_3d.h"
 #include "many_bone_ik_3d.h"
-#include "math/ik_node_3d.h"
 #include "scene/3d/skeleton_3d.h"
 
 Ref<IKBone3D> IKBoneSegment3D::get_root() const {
 	return root;
 }
+
 Ref<IKBone3D> IKBoneSegment3D::get_tip() const {
 	return tip;
 }
@@ -53,10 +53,10 @@ Vector<Ref<IKBoneSegment3D>> IKBoneSegment3D::get_child_segments() const {
 	return child_segments;
 }
 
-void IKBoneSegment3D::create_bone_list(Vector<Ref<IKBone3D>> &p_list, bool p_recursive, bool p_debug_skeleton) const {
+void IKBoneSegment3D::create_bone_list(Vector<Ref<IKBone3D>> &p_list, bool p_recursive) const {
 	if (p_recursive) {
 		for (int32_t child_i = 0; child_i < child_segments.size(); child_i++) {
-			child_segments[child_i]->create_bone_list(p_list, p_recursive, p_debug_skeleton);
+			child_segments[child_i]->create_bone_list(p_list, p_recursive);
 		}
 	}
 	Ref<IKBone3D> current_bone = tip;
@@ -67,25 +67,6 @@ void IKBoneSegment3D::create_bone_list(Vector<Ref<IKBone3D>> &p_list, bool p_rec
 			break;
 		}
 		current_bone = current_bone->get_parent();
-	}
-	if (p_debug_skeleton) {
-		for (int32_t name_i = 0; name_i < list.size(); name_i++) {
-			BoneId bone = list[name_i]->get_bone_id();
-
-			String bone_name = skeleton->get_bone_name(bone);
-			String effector;
-			if (list[name_i]->is_pinned()) {
-				effector += "Effector ";
-			}
-			String prefix;
-			if (list[name_i] == root) {
-				prefix += "(" + effector + "Root) ";
-			}
-			if (list[name_i] == tip) {
-				prefix += "(" + effector + "Tip) ";
-			}
-			print_line(vformat("%s%s (%s)", prefix, bone_name, itos(bone)));
-		}
 	}
 	p_list.append_array(list);
 }
@@ -98,8 +79,8 @@ void IKBoneSegment3D::update_pinned_list(Vector<Vector<double>> &r_weights) {
 	if (is_pinned()) {
 		effector_list.push_back(tip->get_pin());
 	}
-	double passthrough_factor = is_pinned() ? tip->get_pin()->passthrough_factor : 1.0;
-	if (passthrough_factor > 0.0) {
+	double motion_propagation_factor = is_pinned() ? tip->get_pin()->motion_propagation_factor : 1.0;
+	if (motion_propagation_factor > 0.0) {
 		for (Ref<IKBoneSegment3D> child : child_segments) {
 			effector_list.append_array(child->effector_list);
 		}
@@ -113,24 +94,21 @@ void IKBoneSegment3D::_update_optimal_rotation(Ref<IKBone3D> p_for_bone, double 
 	_set_optimal_rotation(p_for_bone, &tip_headings, &target_headings, &heading_weights, p_damp, p_translate, p_constraint_mode);
 }
 
-Quaternion IKBoneSegment3D::clamp_to_quadrance_angle(Quaternion p_quat, double p_cos_half_angle) {
-	double newCoeff = double(1.0) - (p_cos_half_angle * Math::abs(p_cos_half_angle));
-	Quaternion rot = p_quat;
-	double currentCoeff = rot.x * rot.x + rot.y * rot.y + rot.z * rot.z;
-
-	if (newCoeff >= currentCoeff) {
-		return rot;
-	} else {
-		// Calculate how much over the limit the rotation is, between 0 and 1
-		double over_limit = (currentCoeff - newCoeff) / (1.0 - newCoeff);
-		Quaternion clamped_rotation = rot;
-		clamped_rotation.w = rot.w < double(0.0) ? -p_cos_half_angle : p_cos_half_angle;
-		double compositeCoeff = Math::sqrt(newCoeff / currentCoeff);
-		clamped_rotation.x *= compositeCoeff;
-		clamped_rotation.y *= compositeCoeff;
-		clamped_rotation.z *= compositeCoeff;
-		return rot.slerp(clamped_rotation, over_limit);
+Quaternion IKBoneSegment3D::clamp_to_cos_half_angle(Quaternion p_quat, double p_cos_half_angle) {
+	if (p_quat.w < 0.0) {
+		p_quat = p_quat * -1;
 	}
+	double previous_coefficient = (1.0 - (p_quat.w * p_quat.w));
+	if (p_cos_half_angle <= p_quat.w || previous_coefficient == 0.0) {
+		return p_quat;
+	} else {
+		double composite_coefficient = Math::sqrt((1.0 - (p_cos_half_angle * p_cos_half_angle)) / previous_coefficient);
+		p_quat.w = p_cos_half_angle;
+		p_quat.x *= composite_coefficient;
+		p_quat.y *= composite_coefficient;
+		p_quat.z *= composite_coefficient;
+	}
+	return p_quat;
 }
 
 float IKBoneSegment3D::_get_manual_msd(const PackedVector3Array &r_htip, const PackedVector3Array &r_htarget, const Vector<double> &p_weights) {
@@ -148,7 +126,7 @@ float IKBoneSegment3D::_get_manual_msd(const PackedVector3Array &r_htip, const P
 	return manual_RMSD;
 }
 
-void IKBoneSegment3D::_set_optimal_rotation(Ref<IKBone3D> p_for_bone, PackedVector3Array *r_htip, PackedVector3Array *r_htarget, Vector<double> *r_weights, float p_dampening, bool p_translate, bool p_constraint_mode, int32_t current_iteration, int32_t total_iterations) {
+void IKBoneSegment3D::_set_optimal_rotation(Ref<IKBone3D> p_for_bone, PackedVector3Array *r_htip, PackedVector3Array *r_htarget, Vector<double> *r_weights, float p_dampening, bool p_translate, bool p_constraint_mode, double current_iteration, double total_iterations) {
 	ERR_FAIL_NULL(p_for_bone);
 	ERR_FAIL_NULL(r_htip);
 	ERR_FAIL_NULL(r_htarget);
@@ -166,14 +144,18 @@ void IKBoneSegment3D::_set_optimal_rotation(Ref<IKBone3D> p_for_bone, PackedVect
 			Basis rotation = qcp.weighted_superpose(*r_htip, *r_htarget, *r_weights, p_translate);
 			Vector3 translation = qcp.get_translation();
 			double dampening = (p_dampening != -1.0) ? p_dampening : bone_damp;
-			rotation = clamp_to_quadrance_angle(rotation.get_rotation_quaternion(), cos(dampening / 2.0));
-			p_for_bone->get_ik_transform()->rotate_local_with_global(rotation.get_rotation_quaternion());
+			rotation = clamp_to_cos_half_angle(rotation.get_rotation_quaternion(), cos(dampening / 2.0));
+			if (current_iteration == 0) {
+				current_iteration = 0.0001;
+			}
+			rotation = rotation.slerp(p_for_bone->get_global_pose().basis, static_cast<double>(total_iterations) / current_iteration);
+			p_for_bone->get_ik_transform()->rotate_local_with_global(rotation);
 			Transform3D result = Transform3D(p_for_bone->get_global_pose().basis, p_for_bone->get_global_pose().origin + translation);
 			p_for_bone->set_global_pose(result);
 		}
 		bool is_parent_valid = p_for_bone->get_parent().is_valid();
 		if (is_parent_valid && p_for_bone->is_orientationally_constrained()) {
-			p_for_bone->get_constraint()->set_axes_to_orientation_snap(p_for_bone->get_bone_direction_transform(), p_for_bone->get_ik_transform(), p_for_bone->get_constraint_orientation_transform(), bone_damp, p_for_bone->get_cos_half_dampen());
+			p_for_bone->get_constraint()->snap_to_orientation_limit(p_for_bone->get_bone_direction_transform(), p_for_bone->get_ik_transform(), p_for_bone->get_constraint_orientation_transform(), bone_damp, p_for_bone->get_cos_half_dampen());
 		}
 		if (is_parent_valid && p_for_bone->is_axially_constrained()) {
 			p_for_bone->get_constraint()->set_snap_to_twist_limit(p_for_bone->get_bone_direction_transform(), p_for_bone->get_ik_transform(), p_for_bone->get_constraint_twist_transform(), bone_damp, p_for_bone->get_cos_half_dampen());
@@ -187,14 +169,11 @@ void IKBoneSegment3D::_set_optimal_rotation(Ref<IKBone3D> p_for_bone, PackedVect
 				break;
 			} else {
 				got_closer = false;
+				p_for_bone->set_pose(prev_transform);
 			}
 		}
 		i++;
 	} while (i < default_stabilizing_pass_count && !got_closer);
-
-	if (!got_closer) {
-		p_for_bone->set_pose(prev_transform);
-	}
 
 	if (root == p_for_bone) {
 		previous_deviation = INFINITY;
@@ -355,7 +334,7 @@ void IKBoneSegment3D::recursive_create_penalty_array(Ref<IKBoneSegment3D> p_bone
 
 		r_penalty_array.push_back(inner_weight_array);
 		r_pinned_bones.push_back(current_tip);
-		current_falloff = pin->get_passthrough_factor();
+		current_falloff = pin->get_motion_propagation_factor();
 	}
 
 	for (Ref<IKBoneSegment3D> s : p_bone_segment->get_child_segments()) {
@@ -434,7 +413,15 @@ void IKBoneSegment3D::_finalize_segment(Ref<IKBone3D> p_current_tip) {
 		_enable_pinned_descendants();
 	}
 
-	set_name(vformat("IKBoneSegment%sRoot%sTip", root->get_name(), tip->get_name()));
+	StringBuilder name_builder;
+	name_builder.append("IKBoneSegment");
+	name_builder.append(root->get_name());
+	name_builder.append("Root");
+	name_builder.append(tip->get_name());
+	name_builder.append("Tip");
+
+	String ik_bone_name = name_builder.as_string();
+	set_name(ik_bone_name);
 	bones.clear();
 	create_bone_list(bones, false);
 }

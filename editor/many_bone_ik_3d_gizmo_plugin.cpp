@@ -28,26 +28,16 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "core/io/resource_saver.h"
 #include "core/math/transform_3d.h"
 #include "core/templates/local_vector.h"
 #include "editor/editor_interface.h"
 #include "editor/editor_node.h"
-#include "editor/editor_properties.h"
-#include "editor/plugins/animation_player_editor_plugin.h"
+#include "editor/many_bone_ik_shader.h"
 #include "editor/plugins/node_3d_editor_gizmos.h"
 #include "editor/plugins/node_3d_editor_plugin.h"
-#include "scene/3d/label_3d.h"
 #include "scene/3d/mesh_instance_3d.h"
-#include "scene/3d/physics/collision_shape_3d.h"
-#include "scene/3d/physics/joints/joint_3d.h"
-#include "scene/3d/physics/physics_body_3d.h"
 #include "scene/3d/skeleton_3d.h"
-#include "scene/resources/3d/capsule_shape_3d.h"
-#include "scene/resources/3d/primitive_meshes.h"
-#include "scene/resources/3d/sphere_shape_3d.h"
 #include "scene/resources/surface_tool.h"
-#include "scene/scene_string_names.h"
 
 #include "../src/ik_bone_3d.h"
 #include "../src/ik_kusudama_3d.h"
@@ -129,8 +119,8 @@ void ManyBoneIK3DGizmoPlugin::create_gizmo_mesh(BoneId current_bone_idx, Ref<IKB
 	if (ik_kusudama.is_null()) {
 		return;
 	}
-	const TypedArray<IKLimitCone3D> &limit_cones = ik_kusudama->get_limit_cones();
-	if (!limit_cones.size()) {
+	const TypedArray<IKLimitCone3D> &open_cones = ik_kusudama->get_open_cones();
+	if (!open_cones.size()) {
 		return;
 	}
 	BoneId parent_idx = many_bone_ik_skeleton->get_bone_parent(current_bone_idx);
@@ -146,34 +136,34 @@ void ManyBoneIK3DGizmoPlugin::create_gizmo_mesh(BoneId current_bone_idx, Ref<IKB
 	weights[0] = 1;
 
 	Transform3D constraint_relative_to_the_skeleton = p_many_bone_ik->get_relative_transform(p_many_bone_ik->get_owner()).affine_inverse() * many_bone_ik_skeleton->get_relative_transform(many_bone_ik_skeleton->get_owner()) * p_many_bone_ik->get_godot_skeleton_transform_inverse() * ik_bone->get_constraint_orientation_transform()->get_global_transform();
-	PackedFloat32Array kusudama_limit_cones;
+	PackedFloat32Array kusudama_open_cones;
 	Ref<IKKusudama3D> kusudama = ik_bone->get_constraint();
-	for (int32_t cone_i = 0; cone_i < limit_cones.size(); cone_i++) {
-		Ref<IKLimitCone3D> limit_cone = limit_cones[cone_i];
-		Vector3 control_point = limit_cone->get_control_point();
-		PackedFloat32Array new_kusudama_limit_cones;
-		new_kusudama_limit_cones.resize(4 * 3);
-		new_kusudama_limit_cones.fill(0.0f);
-		new_kusudama_limit_cones.write[0] = control_point.x;
-		new_kusudama_limit_cones.write[1] = control_point.y;
-		new_kusudama_limit_cones.write[2] = control_point.z;
-		float radius = limit_cone->get_radius();
-		new_kusudama_limit_cones.write[3] = radius;
+	for (int32_t cone_i = 0; cone_i < open_cones.size(); cone_i++) {
+		Ref<IKLimitCone3D> open_cone = open_cones[cone_i];
+		Vector3 control_point = open_cone->get_control_point();
+		PackedFloat32Array new_kusudama_open_cones;
+		new_kusudama_open_cones.resize(4 * 3);
+		new_kusudama_open_cones.fill(0.0f);
+		new_kusudama_open_cones.write[0] = control_point.x;
+		new_kusudama_open_cones.write[1] = control_point.y;
+		new_kusudama_open_cones.write[2] = control_point.z;
+		float radius = open_cone->get_radius();
+		new_kusudama_open_cones.write[3] = radius;
 
-		Vector3 tangent_center_1 = limit_cone->get_tangent_circle_center_next_1();
-		new_kusudama_limit_cones.write[4] = tangent_center_1.x;
-		new_kusudama_limit_cones.write[5] = tangent_center_1.y;
-		new_kusudama_limit_cones.write[6] = tangent_center_1.z;
-		float tangent_radius = limit_cone->get_tangent_circle_radius_next();
-		new_kusudama_limit_cones.write[7] = tangent_radius;
+		Vector3 tangent_center_1 = open_cone->get_tangent_circle_center_next_1();
+		new_kusudama_open_cones.write[4] = tangent_center_1.x;
+		new_kusudama_open_cones.write[5] = tangent_center_1.y;
+		new_kusudama_open_cones.write[6] = tangent_center_1.z;
+		float tangent_radius = open_cone->get_tangent_circle_radius_next();
+		new_kusudama_open_cones.write[7] = tangent_radius;
 
-		Vector3 tangent_center_2 = limit_cone->get_tangent_circle_center_next_2();
-		new_kusudama_limit_cones.write[8] = tangent_center_2.x;
-		new_kusudama_limit_cones.write[9] = tangent_center_2.y;
-		new_kusudama_limit_cones.write[10] = tangent_center_2.z;
-		new_kusudama_limit_cones.write[11] = tangent_radius;
+		Vector3 tangent_center_2 = open_cone->get_tangent_circle_center_next_2();
+		new_kusudama_open_cones.write[8] = tangent_center_2.x;
+		new_kusudama_open_cones.write[9] = tangent_center_2.y;
+		new_kusudama_open_cones.write[10] = tangent_center_2.z;
+		new_kusudama_open_cones.write[11] = tangent_radius;
 
-		kusudama_limit_cones.append_array(new_kusudama_limit_cones);
+		kusudama_open_cones.append_array(new_kusudama_open_cones);
 	}
 	if (current_bone_idx >= many_bone_ik_skeleton->get_bone_count()) {
 		return;
@@ -262,17 +252,13 @@ void ManyBoneIK3DGizmoPlugin::create_gizmo_mesh(BoneId current_bone_idx, Ref<IKB
 	Ref<ShaderMaterial> kusudama_material;
 	kusudama_material.instantiate();
 	kusudama_material->set_shader(kusudama_shader);
-	kusudama_material->set_shader_parameter("cone_sequence", kusudama_limit_cones);
-	int32_t cone_count = kusudama->get_limit_cones().size();
+	kusudama_material->set_shader_parameter("cone_sequence", kusudama_open_cones);
+	int32_t cone_count = kusudama->get_open_cones().size();
 	kusudama_material->set_shader_parameter("cone_count", cone_count);
 	kusudama_material->set_shader_parameter("kusudama_color", current_bone_color);
 	p_gizmo->add_mesh(
 			surface_tool->commit(Ref<Mesh>(), RS::ARRAY_CUSTOM_RGBA_HALF << RS::ARRAY_FORMAT_CUSTOM0_SHIFT),
 			kusudama_material, constraint_relative_to_the_skeleton);
-}
-
-ManyBoneIK3DGizmoPlugin::ManyBoneIK3DGizmoPlugin() {
-	kusudama_shader->set_code(MANY_BONE_IKKUSUDAMA_SHADER);
 }
 
 int32_t ManyBoneIK3DGizmoPlugin::get_priority() const {
@@ -330,7 +316,7 @@ Transform3D ManyBoneIK3DGizmoPlugin::get_subgizmo_transform(const EditorNode3DGi
 	ERR_FAIL_COND_V(!skeleton, Transform3D());
 
 	Transform3D constraint_relative_to_the_skeleton = many_bone_ik->get_relative_transform(many_bone_ik->get_owner()).affine_inverse() *
-													  skeleton->get_relative_transform(skeleton->get_owner()) * many_bone_ik->get_godot_skeleton_transform_inverse();
+			skeleton->get_relative_transform(skeleton->get_owner()) * many_bone_ik->get_godot_skeleton_transform_inverse();
 	return constraint_relative_to_the_skeleton * skeleton->get_bone_global_pose(p_id);
 }
 
@@ -352,7 +338,7 @@ void ManyBoneIK3DGizmoPlugin::set_subgizmo_transform(const EditorNode3DGizmo *p_
 	t.basis = to_local * p_transform.get_basis();
 
 	Transform3D constraint_relative_to_the_skeleton = many_bone_ik->get_relative_transform(many_bone_ik->get_owner()).affine_inverse() *
-													  skeleton->get_relative_transform(skeleton->get_owner()) * many_bone_ik->get_godot_skeleton_transform_inverse();
+			skeleton->get_relative_transform(skeleton->get_owner()) * many_bone_ik->get_godot_skeleton_transform_inverse();
 	p_transform = constraint_relative_to_the_skeleton.affine_inverse() * p_transform;
 	// Origin.
 	Vector3 orig = skeleton->get_bone_pose(p_id).origin;
@@ -378,8 +364,8 @@ void ManyBoneIK3DGizmoPlugin::commit_subgizmos(const EditorNode3DGizmo *p_gizmo,
 	if (ne->get_tool_mode() == Node3DEditor::TOOL_MODE_SELECT || ne->get_tool_mode() == Node3DEditor::TOOL_MODE_ROTATE) {
 		for (int i = 0; i < p_ids.size(); i++) {
 			int32_t constraint_i = many_bone_ik->find_constraint(skeleton->get_bone_name(p_ids[i]));
-			float from_original = many_bone_ik->get_kusudama_twist(constraint_i).x;
-			float range = many_bone_ik->get_kusudama_twist(constraint_i).y;
+			float from_original = many_bone_ik->get_joint_twist(constraint_i).x;
+			float range = many_bone_ik->get_joint_twist(constraint_i).y;
 			ur->add_do_method(many_bone_ik, "set_kusudama_twist", constraint_i, Vector2(skeleton->get_bone_pose(p_ids[i]).get_basis().get_euler().y, range));
 			ur->add_undo_method(many_bone_ik, "set_kusudama_twist", constraint_i, Vector2(from_original, range));
 			ur->add_do_method(many_bone_ik, "set_dirty");
@@ -525,6 +511,7 @@ void ManyBoneIK3DGizmoPlugin::_hide_handles() {
 void ManyBoneIK3DGizmoPlugin::_notifications(int32_t p_what) {
 	switch (p_what) {
 		case EditorNode3DGizmoPlugin::NOTIFICATION_POSTINITIALIZE: {
+			kusudama_shader->set_code(MANY_BONE_IKKUSUDAMA_SHADER);
 			handle_material = Ref<ShaderMaterial>(memnew(ShaderMaterial));
 			handle_shader = Ref<Shader>(memnew(Shader));
 			handle_shader->set_code(R"(
@@ -589,7 +576,7 @@ void vertex() {
 	}
 	VERTEX = VERTEX;
 	POSITION = PROJECTION_MATRIX * VIEW_MATRIX * MODEL_MATRIX * vec4(VERTEX.xyz, 1.0);
-	POSITION.z = mix(POSITION.z, 0, 0.998);
+	POSITION.z = mix(POSITION.z, POSITION.w, 0.999);
 }
 void fragment() {
 	ALBEDO = COLOR.rgb;

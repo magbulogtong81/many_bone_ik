@@ -33,7 +33,7 @@
 
 #include "ik_bone_3d.h"
 #include "ik_bone_segment_3d.h"
-#include "ik_limit_cone_3d.h"
+#include "ik_open_cone_3d.h"
 #include "ik_ray_3d.h"
 #include "math/ik_node_3d.h"
 
@@ -49,11 +49,11 @@ class IKKusudama3D : public Resource {
 	GDCLASS(IKKusudama3D, Resource);
 
 	/**
-	 * An array containing all of the Kusudama's limit_cones. The kusudama is built up
+	 * An array containing all of the Kusudama's open_cones. The kusudama is built up
 	 * with the expectation that any limitCone in the array is connected to the cone at the previous element in the array,
 	 * and the cone at the next element in the array.
 	 */
-	Vector<Ref<IKLimitCone3D>> limit_cones;
+	Vector<Ref<IKLimitCone3D>> open_cones;
 
 	Quaternion twist_min_rot;
 	Vector3 twist_min_vec;
@@ -88,7 +88,7 @@ public:
 
 	IKKusudama3D() {}
 
-	void _update_constraint();
+	void _update_constraint(Ref<IKNode3D> p_limiting_axes);
 
 	void update_tangent_radii();
 
@@ -113,6 +113,8 @@ public:
 			Quaternion &r_swing,
 			Quaternion &r_twist);
 
+	static Quaternion get_quaternion_axis_angle(const Vector3 &p_axis, real_t p_angle);
+
 public:
 	/**
 	 * Presumes the input axes are the bone's localAxes, and rotates
@@ -120,7 +122,7 @@ public:
 	 *
 	 * @param to_set
 	 */
-	void set_axes_to_orientation_snap(Ref<IKNode3D> p_bone_direction, Ref<IKNode3D> p_to_set, Ref<IKNode3D> p_limiting_axes, real_t p_dampening, real_t p_cos_half_angle_dampen);
+	void snap_to_orientation_limit(Ref<IKNode3D> p_bone_direction, Ref<IKNode3D> p_to_set, Ref<IKNode3D> p_limiting_axes, real_t p_dampening, real_t p_cos_half_angle_dampen);
 
 	bool is_nan_vector(const Vector3 &vec);
 
@@ -169,8 +171,8 @@ public:
 	 * @param new_point where on the Kusudama to add the LimitCone (in Kusudama's local coordinate frame defined by its bone's majorRotationAxes))
 	 * @param radius the radius of the limitCone
 	 */
-	void add_limit_cone(Ref<IKLimitCone3D> p_limit_cone);
-	void remove_limit_cone(Ref<IKLimitCone3D> limitCone);
+	void add_open_cone(Ref<IKLimitCone3D> p_open_cone);
+	void remove_open_cone(Ref<IKLimitCone3D> limitCone);
 
 	/**
 	 *
@@ -190,9 +192,9 @@ public:
 	bool is_enabled();
 	void disable();
 	void enable();
-	void clear_limit_cones();
-	TypedArray<IKLimitCone3D> get_limit_cones() const;
-	void set_limit_cones(TypedArray<IKLimitCone3D> p_cones);
+	void clear_open_cones();
+	TypedArray<IKLimitCone3D> get_open_cones() const;
+	void set_open_cones(TypedArray<IKLimitCone3D> p_cones);
 	float get_resistance();
 	void set_resistance(float p_resistance);
 	static Quaternion clamp_to_quadrance_angle(Quaternion p_rotation, double p_cos_half_angle);

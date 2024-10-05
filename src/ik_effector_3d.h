@@ -51,12 +51,14 @@ class IKEffector3D : public Resource {
 	NodePath target_node_path;
 	ObjectID target_node_cache;
 	Node *target_node_reference = nullptr;
+	bool target_static = false;
+	Transform3D target_transform;
 
 	Transform3D target_relative_to_skeleton_origin;
 	int32_t num_headings = 7;
 	// See IKEffectorTemplate to change the defaults.
 	real_t weight = 0.0;
-	real_t passthrough_factor = 0.0;
+	real_t motion_propagation_factor = 0.0;
 	PackedVector3Array target_headings;
 	PackedVector3Array tip_headings;
 	Vector<real_t> heading_weights;
@@ -72,9 +74,9 @@ public:
 	void set_direction_priorities(Vector3 p_direction_priorities);
 	Vector3 get_direction_priorities() const;
 	void update_target_global_transform(Skeleton3D *p_skeleton, ManyBoneIK3D *p_modification = nullptr);
-	const float MAX_KUSUDAMA_LIMIT_CONES = 30;
-	float get_passthrough_factor() const;
-	void set_passthrough_factor(float p_passthrough_factor);
+	const float MAX_KUSUDAMA_OPEN_CONES = 30;
+	float get_motion_propagation_factor() const;
+	void set_motion_propagation_factor(float p_motion_propagation_factor);
 	void set_target_node(Skeleton3D *p_skeleton, const NodePath &p_target_node_path);
 	NodePath get_target_node() const;
 	Transform3D get_target_global_transform() const;

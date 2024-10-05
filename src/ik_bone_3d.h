@@ -33,7 +33,7 @@
 
 #include "ik_effector_template_3d.h"
 #include "ik_kusudama_3d.h"
-#include "ik_limit_cone_3d.h"
+#include "ik_open_cone_3d.h"
 #include "math/ik_node_3d.h"
 
 #include "core/io/resource.h"
@@ -118,4 +118,5 @@ public:
 	float calculate_total_radius_sum(const TypedArray<IKLimitCone3D> &p_cones) const;
 	Vector3 calculate_weighted_direction(const TypedArray<IKLimitCone3D> &p_cones, float p_total_radius_sum) const;
 };
+
 #endif // IK_BONE_3D_H

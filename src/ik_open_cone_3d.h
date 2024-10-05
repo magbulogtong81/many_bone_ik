@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  ik_limit_cone_3d.h                                                    */
+/*  ik_open_cone_3d.h                                                     */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,8 +28,8 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef IK_LIMIT_CONE_3D_H
-#define IK_LIMIT_CONE_3D_H
+#ifndef IK_OPEN_CONE_3D_H
+#define IK_OPEN_CONE_3D_H
 
 #include "core/io/resource.h"
 #include "core/math/vector3.h"
@@ -47,7 +47,7 @@ class IKLimitCone3D : public Resource {
 	double radius_cosine = 0;
 	double radius = 0;
 	Vector3 _closest_cone(Ref<IKLimitCone3D> next, Vector3 input) const;
-	void _set_tangent_circle_radius_next(double rad);
+	void set_tangent_circle_radius_next(double rad);
 	WeakRef parent_kusudama;
 
 	Vector3 tangent_circle_center_next_1;
@@ -95,12 +95,6 @@ class IKLimitCone3D : public Resource {
 	Vector3 _closest_point_on_closest_cone(Ref<IKLimitCone3D> next, Vector3 input, Vector<double> *in_bounds) const;
 
 	double _get_tangent_circle_radius_next_cos();
-	static Vector3 _get_orthogonal(Vector3 p_in);
-
-protected:
-	double _get_radius();
-
-	double _get_radius_cosine();
 
 public:
 	IKLimitCone3D() {}
@@ -135,6 +129,7 @@ public:
 	double get_radius() const;
 	double get_radius_cosine() const;
 	void set_radius(double radius);
+	static Vector3 get_orthogonal(Vector3 p_input);
 };
 
-#endif // IK_LIMIT_CONE_3D_H
+#endif // IK_OPEN_CONE_3D_H

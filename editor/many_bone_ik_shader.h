@@ -40,7 +40,7 @@ uniform vec4 kusudama_color : source_color = vec4(0.58039218187332, 0.2705882489
 uniform int cone_count = 0;
 
 // 0,0,0 is the center of the kusudama. The kusudamas have their own bases that automatically get reoriented such that +y points in the direction that is the weighted average of the limitcones on the kusudama.
-// But, if you have a kusuduma with just 1 limit_cone, then in general that limit_cone should be 0,1,0 in the kusudama's basis unless the user has specifically specified otherwise.
+// But, if you have a kusuduma with just 1 open_cone, then in general that open_cone should be 0,1,0 in the kusudama's basis unless the user has specifically specified otherwise.
 
 uniform vec4 cone_sequence[30];
 
@@ -176,9 +176,11 @@ vec4 color_allowed(in vec3 normal_dir,  in int cone_counts, in float boundary_wi
 		}
 	}
 	vec4 result = vert_model_color;
-	if (current_condition != 0 && current_condition != 2) {
-		float on_cone_boundary = current_condition == 1 ? -0.3 : 0.0;
-		result += vec4(0.0, on_cone_boundary, 0, 0.0);
+	bool is_disallowed_entirely = current_condition == -3;
+	bool is_disallowed_on_tangent_cone_boundary = current_condition == -2;
+	bool is_disallowed_on_control_cone_boundary = current_condition == -1;
+	if (is_disallowed_entirely || is_disallowed_on_tangent_cone_boundary || is_disallowed_on_control_cone_boundary) {
+		return result;
 	} else {
 		return vec4(0.0, 0.0, 0.0, 0.0);
 	}
@@ -190,8 +192,8 @@ void vertex() {
 	vert_model_color.rgb = kusudama_color.rgb;
 	// Draw the spheres in front of the background.
 	VERTEX = VERTEX;
-    POSITION = PROJECTION_MATRIX * VIEW_MATRIX * MODEL_MATRIX * vec4(VERTEX.xyz, 1.0);
-    POSITION.z = mix(POSITION.z, 0, 0.95);
+	POSITION = PROJECTION_MATRIX * VIEW_MATRIX * MODEL_MATRIX * vec4(VERTEX.xyz, 1.0);
+	POSITION.z = mix(POSITION.z, POSITION.w, 0.999);
 }
 
 void fragment() {

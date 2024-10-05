@@ -106,7 +106,7 @@ void IKBone3D::update_default_constraint_transform() {
 		return;
 	}
 
-	TypedArray<IKLimitCone3D> cones = constraint->get_limit_cones();
+	TypedArray<IKLimitCone3D> cones = constraint->get_open_cones();
 	Vector3 direction;
 	if (cones.size() == 0) {
 		direction = bone_direction_transform->get_global_transform().basis.get_column(Vector3::AXIS_Y);
@@ -214,7 +214,7 @@ IKBone3D::IKBone3D(StringName p_bone, Skeleton3D *p_skeleton, const Ref<IKBone3D
 			create_pin();
 			Ref<IKEffector3D> effector = get_pin();
 			effector->set_target_node(p_skeleton, elem->get_target_node());
-			effector->set_passthrough_factor(elem->get_passthrough_factor());
+			effector->set_motion_propagation_factor(elem->get_motion_propagation_factor());
 			effector->set_weight(elem->get_weight());
 			effector->set_direction_priorities(elem->get_direction_priorities());
 			break;
